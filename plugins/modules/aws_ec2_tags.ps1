@@ -5,6 +5,89 @@
 
 #AnsibleRequires -CSharpUtil Ansible.Basic
 
+# WANT_JSON
+# POWERSHELL_COMMON
+
+<#
+.SYNOPSIS
+Read instance metadata and manage EC2 instance tags
+
+.DESCRIPTION
+This module reads EC2 instance metadata and manages EC2 instance tags using AWS PowerShell cmdlets.
+It supports reading instance information, setting tags, and removing tags.
+Requires AWS.Tools.EC2 or AWSPowerShell module to be installed on the target Windows host.
+
+.PARAMETER instance_id
+The EC2 instance ID.
+Required: yes
+
+.PARAMETER tags
+Dictionary of tags to set or remove.
+Required when state=present or state=absent.
+
+.PARAMETER state
+Desired state: read (get info), present (set tags), or absent (remove tags).
+Default: read
+
+.PARAMETER purge_tags
+Remove tags not specified in the tags parameter when state=present.
+Default: false
+
+.PARAMETER aws_access_key
+AWS access key ID. If not provided, uses environment variables or IAM role.
+
+.PARAMETER aws_secret_key
+AWS secret access key. If not provided, uses environment variables or IAM role.
+
+.PARAMETER region
+AWS region.
+Default: us-east-1
+
+.EXAMPLE
+# Read instance metadata and tags
+- name: Get instance info
+  community.awspowershell.aws_ec2_tags:
+    instance_id: i-1234567890abcdef0
+    state: read
+  register: instance_info
+
+.EXAMPLE
+# Set tags on instance
+- name: Add tags
+  community.awspowershell.aws_ec2_tags:
+    instance_id: i-1234567890abcdef0
+    state: present
+    tags:
+      Environment: Production
+      Application: WebServer
+
+.EXAMPLE
+# Remove specific tags
+- name: Remove tags
+  community.awspowershell.aws_ec2_tags:
+    instance_id: i-1234567890abcdef0
+    state: absent
+    tags:
+      OldTag: ""
+
+.EXAMPLE
+# Replace all tags
+- name: Set tags with purge
+  community.awspowershell.aws_ec2_tags:
+    instance_id: i-1234567890abcdef0
+    state: present
+    purge_tags: yes
+    tags:
+      Name: my-instance
+      Team: Engineering
+
+.NOTES
+Module: aws_ec2_tags
+Author: Community
+Version: 1.0.0
+Requirements: AWS.Tools.EC2 or AWSPowerShell module
+#>
+
 $spec = @{
     options = @{
         instance_id = @{ type = "str"; required = $true }

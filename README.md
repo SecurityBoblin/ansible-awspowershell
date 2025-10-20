@@ -38,10 +38,10 @@ This collection provides Ansible modules that leverage AWS PowerShell cmdlets to
 
 ```bash
 # From Ansible Galaxy (when published)
-ansible-galaxy collection install community.awspowershell
+ansible-galaxy collection install securityboblin.awspowershell
 
 # From tarball
-ansible-galaxy collection install community-awspowershell-1.0.0.tar.gz
+ansible-galaxy collection install securityboblin-awspowershell-1.0.0.tar.gz
 
 # From source
 ansible-galaxy collection install . --force
@@ -398,12 +398,8 @@ ansible_winrm_server_cert_validation: ignore
 
 ## Documentation
 
-- **CLAUDE.md** - Complete implementation guide with detailed examples
 - **docs/aws_s3_object.md** - Full S3 module documentation
 - **docs/aws_ec2_tags.md** - Full EC2 tags module documentation
-- **.notes/development.md** - Architecture and design decisions
-- **.notes/testing-strategy.md** - Testing approach and procedures
-- **.notes/aws-powershell-reference.md** - AWS PowerShell cmdlet reference
 
 ## Contributing
 
@@ -417,7 +413,6 @@ Contributions are welcome! Please:
 ## Support
 
 - Review documentation in the `docs/` directory
-- Check `.notes/` for additional technical details
 - Open an issue on GitHub with:
   - Ansible version
   - Collection version
@@ -426,13 +421,10 @@ Contributions are welcome! Please:
 
 ## License
 
-GNU General Public License v3.0 or later
-
-See COPYING for full license text.
 
 ## Author
 
-Your Name (@yourusername)
+Marius Rometsch (@SecurityBoblin)
 
 ## Links
 

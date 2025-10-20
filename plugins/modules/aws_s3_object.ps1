@@ -5,6 +5,83 @@
 
 #AnsibleRequires -CSharpUtil Ansible.Basic
 
+# WANT_JSON
+# POWERSHELL_COMMON
+
+<#
+.SYNOPSIS
+Manage S3 objects (upload, download, delete)
+
+.DESCRIPTION
+This module manages S3 objects using AWS PowerShell cmdlets.
+It supports uploading files to S3, downloading files from S3, and deleting S3 objects.
+Requires AWS.Tools.S3 or AWSPowerShell module to be installed on the target Windows host.
+
+.PARAMETER bucket
+The name of the S3 bucket.
+Required: yes
+
+.PARAMETER key
+The S3 object key (path within the bucket).
+Required: yes
+
+.PARAMETER src
+Local file path for upload. Required when state=present.
+
+.PARAMETER dest
+Local file path for download. Required when state=download.
+
+.PARAMETER state
+Desired state: present (upload), download, or absent (delete).
+Default: present
+
+.PARAMETER aws_access_key
+AWS access key ID. If not provided, uses environment variables or IAM role.
+
+.PARAMETER aws_secret_key
+AWS secret access key. If not provided, uses environment variables or IAM role.
+
+.PARAMETER region
+AWS region.
+Default: us-east-1
+
+.PARAMETER overwrite
+Whether to overwrite existing files/objects.
+Default: true
+
+.EXAMPLE
+# Upload file to S3
+- name: Upload file
+  community.awspowershell.aws_s3_object:
+    bucket: my-bucket
+    key: uploads/data.json
+    src: C:\temp\data.json
+    state: present
+
+.EXAMPLE
+# Download file from S3
+- name: Download file
+  community.awspowershell.aws_s3_object:
+    bucket: my-bucket
+    key: uploads/data.json
+    dest: C:\downloads\data.json
+    state: download
+
+.EXAMPLE
+# Delete S3 object
+- name: Delete object
+  community.awspowershell.aws_s3_object:
+    bucket: my-bucket
+    key: uploads/old-data.json
+    state: absent
+
+.NOTES
+Module: aws_s3_object
+Author: Community
+Version: 1.0.0
+Requirements: AWS.Tools.S3 or AWSPowerShell module
+#>
+
 $spec = @{
     options = @{
         bucket = @{ type = "str"; required = $true }

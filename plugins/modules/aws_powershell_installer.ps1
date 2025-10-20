@@ -5,6 +5,95 @@
 
 #AnsibleRequires -CSharpUtil Ansible.Basic
 
+# WANT_JSON
+# POWERSHELL_COMMON
+
+<#
+.SYNOPSIS
+Install, update, or remove AWS PowerShell modules
+
+.DESCRIPTION
+This module installs, updates, or removes AWS PowerShell modules on Windows hosts.
+It supports both modular installation (AWS.Tools.*) and monolithic installation (AWSPowerShell).
+The module automatically installs AWS.Tools.Installer when using modular mode.
+
+.PARAMETER modules
+List of AWS.Tools modules to install.
+Only used with install_type=modular.
+Default: ["AWS.Tools.S3", "AWS.Tools.EC2"]
+
+.PARAMETER install_type
+Type of installation: modular (AWS.Tools.*) or monolithic (AWSPowerShell).
+Modular is recommended for production use.
+Default: modular
+
+.PARAMETER state
+Desired state: present (install if missing), absent (remove), or latest (update to latest version).
+Default: present
+
+.PARAMETER force
+Force installation even if module exists.
+Default: false
+
+.PARAMETER allow_clobber
+Allow module to override existing commands.
+Default: true
+
+.PARAMETER skip_publisher_check
+Skip publisher validation check during installation.
+Default: false
+
+.EXAMPLE
+# Install modular AWS.Tools modules
+- name: Install AWS PowerShell modules
+  community.awspowershell.aws_powershell_installer:
+    modules:
+      - AWS.Tools.S3
+      - AWS.Tools.EC2
+      - AWS.Tools.SecurityToken
+    state: present
+
+.EXAMPLE
+# Install monolithic AWSPowerShell module
+- name: Install AWSPowerShell module
+  community.awspowershell.aws_powershell_installer:
+    install_type: monolithic
+    state: present
+
+.EXAMPLE
+# Update modules to latest version
+- name: Update AWS PowerShell modules
+  community.awspowershell.aws_powershell_installer:
+    modules:
+      - AWS.Tools.S3
+      - AWS.Tools.EC2
+    state: latest
+
+.EXAMPLE
+# Remove AWS PowerShell modules
+- name: Remove AWS modules
+  community.awspowershell.aws_powershell_installer:
+    modules:
+      - AWS.Tools.S3
+    state: absent
+
+.EXAMPLE
+# Force reinstall modules
+- name: Force reinstall AWS modules
+  community.awspowershell.aws_powershell_installer:
+    modules:
+      - AWS.Tools.S3
+      - AWS.Tools.EC2
+    state: present
+    force: yes
+
+.NOTES
+Module: aws_powershell_installer
+Author: Community
+Version: 1.0.0
+Requirements: PowerShell 5.1 or later, Internet connection to PowerShell Gallery
+#>
+
 $spec = @{
     options = @{
         modules = @{
