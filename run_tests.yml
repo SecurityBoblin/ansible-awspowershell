@@ -1,0 +1,110 @@
+---
+# Integration Test Runner for AWS PowerShell Collection
+#
+# Usage:
+#   ansible-playbook run_tests.yml                    # Run all tests
+#   ansible-playbook run_tests.yml --tags s3          # Run only S3 tests
+#   ansible-playbook run_tests.yml --tags ec2         # Run only EC2 tests
+#   ansible-playbook run_tests.yml -v                 # Verbose output
+#
+# Prerequisites:
+#   1. Edit tests/integration/integration_config.yml with your test bucket and instance
+#   2. Set AWS credentials via environment variables or IAM role
+#   3. Install the collection: ansible-galaxy collection install . --force
+
+- name: Run Integration Tests for AWS PowerShell Collection
+  hosts: all
+  # connection: local
+  gather_facts: yes
+
+  vars_files:
+    - tests/integration/integration_config.yml
+
+  vars:
+    # Default AWS region - can be overridden in integration_config.yml
+    # If aws_region is defined in integration_config.yml, it will be used
+    # Otherwise falls back to us-east-1
+    aws_region_default: "{{ aws_region | default('eu-central-1') }}"
+
+  pre_tasks:
+    - name: Verify AWS credentials are configured (PowerShell)
+      win_shell: |
+        try {
+          Set-DefaultAWSRegion -Region eu-central-1
+          $identity = Get-STSCallerIdentity -ErrorAction Stop
+          $result = @{
+            Account = $identity.Account
+            UserId = $identity.UserId
+            Arn = $identity.Arn
+          }
+          $result | ConvertTo-Json
+        } catch {
+          Write-Error "AWS credentials not configured: $_"
+          exit 1
+        }
+      register: aws_identity
+      changed_when: false
+      failed_when: false
+
+    - name: Display AWS identity
+      debug:
+        msg: "Testing with AWS account: {{ (aws_identity.stdout | from_json).Account if aws_identity.rc == 0 else 'NOT CONFIGURED' }}"
+
+    - name: Fail if AWS credentials not configured
+      fail:
+        msg: |
+          AWS credentials not configured!
+
+          Please configure credentials using one of these methods:
+            1. Set environment variables on Windows host:
+               $env:AWS_ACCESS_KEY_ID="your-key"
+               $env:AWS_SECRET_ACCESS_KEY="your-secret"
+
+            2. Use AWS PowerShell cmdlet:
+               Set-AWSCredential -AccessKey "your-key" -SecretKey "your-secret" -StoreAs default
+
+            3. Or use IAM role (if running on EC2)
+
+          Also ensure AWS.Tools.SecurityToken or AWSPowerShell module is installed.
+      when: aws_identity.rc != 0
+
+    - name: Verify test configuration
+      assert:
+        that:
+          - test_bucket_name is defined
+          - test_bucket_name != ""
+          - test_ec2_instance_id is defined
+        fail_msg: |
+          Test configuration incomplete!
+
+          Please edit tests/integration/integration_config.yml and set:
+            - test_bucket_name: "your-test-bucket"
+            - test_ec2_instance_id: "i-xxxxxxxxxxxxx"
+
+  tasks:
+    - name: Run S3 Object Module Integration Tests
+      block:
+        - name: Include S3 test tasks
+          include_tasks: tests/integration/targets/aws_s3_object/tasks/main.yml
+      tags: [s3, always]
+
+    - name: Run EC2 Tags Module Integration Tests
+      block:
+        - name: Include EC2 tags test tasks
+          include_tasks: tests/integration/targets/aws_ec2_tags/tasks/main.yml
+      tags: [ec2, always]
+
+  post_tasks:
+    - name: Test Summary
+      debug:
+        msg: |
+          ========================================
+          Integration Tests Complete!
+          ========================================
+
+          All tests passed successfully.
+
+          Next steps:
+            - Review test output above
+            - Use modules in your playbooks
+            - See CLAUDE.md for usage examples

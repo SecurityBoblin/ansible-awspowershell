@@ -1,0 +1,168 @@
+---
+# Integration tests for aws_s3_object module
+
+- name: Set test variables
+  set_fact:
+    test_bucket: "{{ test_bucket_name }}"
+    test_region: "{{ aws_region_default | default('us-east-1') }}"
+    test_key: "test-file.txt"
+    test_content: "This is a test file for Ansible AWS PowerShell collection"
+    test_src: "{{ ansible_env.TEMP | default('/tmp') }}/test-upload.txt"
+    test_dest: "{{ ansible_env.TEMP | default('/tmp') }}/test-download.txt"
+
+- name: Create test file
+  copy:
+    content: "{{ test_content }}"
+    dest: "{{ test_src }}"
+
+# Note: These tests assume you have a pre-existing S3 bucket or appropriate permissions to create one
+# Replace 'test_bucket' with an actual bucket name in your test environment
+
+- name: Upload file to S3 (check mode)
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    src: "{{ test_src }}"
+    state: present
+    region: "{{ test_region }}"
+  check_mode: yes
+  register: upload_check
+
+- name: Verify check mode reported change
+  assert:
+    that:
+      - upload_check is changed
+      - "'check mode' in upload_check.msg or 'uploaded' in upload_check.msg.lower()"
+
+- name: Upload file to S3
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    src: "{{ test_src }}"
+    state: present
+    region: "{{ test_region }}"
+  register: upload_result
+
+- name: Verify upload succeeded
+  assert:
+    that:
+      - upload_result is changed
+      - "'uploaded' in upload_result.msg.lower()"
+
+- name: Upload same file again (idempotency test)
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    src: "{{ test_src }}"
+    state: present
+    region: "{{ test_region }}"
+  register: upload_again
+
+- name: Verify idempotency
+  assert:
+    that:
+      - upload_again is changed  # Will be changed due to overwrite=true default
+
+- name: Upload with overwrite=false
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    src: "{{ test_src }}"
+    state: present
+    region: "{{ test_region }}"
+    overwrite: no
+  register: upload_no_overwrite
+
+- name: Verify no change when overwrite=false
+  assert:
+    that:
+      - upload_no_overwrite is not changed
+
+- name: Download file from S3 (check mode)
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    dest: "{{ test_dest }}"
+    state: download
+    region: "{{ test_region }}"
+  check_mode: yes
+  register: download_check
+
+- name: Verify check mode reported change
+  assert:
+    that:
+      - download_check is changed
+
+- name: Download file from S3
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    dest: "{{ test_dest }}"
+    state: download
+    region: "{{ test_region }}"
+  register: download_result
+
+- name: Verify download succeeded
+  assert:
+    that:
+      - download_result is changed
+      - "'downloaded' in download_result.msg.lower()"
+
+- name: Verify downloaded file content
+  slurp:
+    src: "{{ test_dest }}"
+  register: downloaded_content
+
+- name: Check content matches
+  assert:
+    that:
+      - "(downloaded_content.content | b64decode) == test_content"
+
+- name: Delete object from S3 (check mode)
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    state: absent
+    region: "{{ test_region }}"
+  check_mode: yes
+  register: delete_check
+
+- name: Verify check mode reported change
+  assert:
+    that:
+      - delete_check is changed
+
+- name: Delete object from S3
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    state: absent
+    region: "{{ test_region }}"
+  register: delete_result
+
+- name: Verify deletion succeeded
+  assert:
+    that:
+      - delete_result is changed
+      - "'deleted' in delete_result.msg.lower()"
+
+- name: Delete non-existent object (idempotency)
+  community.awspowershell.aws_s3_object:
+    bucket: "{{ test_bucket }}"
+    key: "{{ test_key }}"
+    state: absent
+    region: "{{ test_region }}"
+  register: delete_again
+
+- name: Verify idempotency of deletion
+  assert:
+    that:
+      - delete_again is not changed
+
+- name: Cleanup test files
+  win_file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ test_src }}"
+    - "{{ test_dest }}"

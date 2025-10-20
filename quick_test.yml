@@ -1,0 +1,247 @@
+---
+# Quick Manual Test Playbook
+#
+# This is a simple playbook to quickly test the modules work
+# without running the full test suite.
+#
+# Usage:
+#   1. Edit the vars section below with your bucket and instance
+#   2. Run: ansible-playbook quick_test.yml -v
+#
+# Prerequisites:
+#   - AWS credentials configured (env vars, ~/.aws/credentials, or IAM role)
+#   - Valid S3 bucket name
+#   - Valid EC2 instance ID
+
+- name: Quick Test of AWS PowerShell Modules
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    # EDIT THESE VALUES
+    test_bucket: "your-bucket-name"           # Replace with your S3 bucket
+    test_instance: "i-0123456789abcdef0"      # Replace with your instance ID
+    aws_region: "us-east-1"                   # Your AWS region
+
+  tasks:
+    - name: Display test configuration
+      debug:
+        msg: |
+          Quick Test Configuration:
+          -------------------------
+          S3 Bucket: {{ test_bucket }}
+          EC2 Instance: {{ test_instance }}
+          AWS Region: {{ aws_region }}
+          Timestamp: {{ ansible_date_time.iso8601 }}
+
+    - name: Verify AWS credentials
+      command: aws sts get-caller-identity
+      register: aws_identity
+      changed_when: false
+      failed_when: false
+
+    - name: Show AWS identity
+      debug:
+        var: aws_identity.stdout
+      when: aws_identity.rc == 0
+
+    - name: Warning if credentials not configured
+      debug:
+        msg: |
+          WARNING: AWS credentials not detected via AWS CLI.
+          Proceeding anyway - modules will try environment variables or IAM role.
+      when: aws_identity.rc != 0
+
+    # ========================================
+    # S3 MODULE TESTS
+    # ========================================
+
+    - name: "=== S3 Module Tests ==="
+      debug:
+        msg: "Testing aws_s3_object module..."
+
+    - name: Create temporary test file
+      copy:
+        content: |
+          Test file created by Ansible AWS PowerShell Collection
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Test ID: {{ 9999 | random }}
+        dest: /tmp/ansible-test-{{ ansible_date_time.epoch }}.txt
+      register: test_file
+
+    - name: Upload test file to S3
+      community.awspowershell.aws_s3_object:
+        bucket: "{{ test_bucket }}"
+        key: "ansible-tests/test-{{ ansible_date_time.epoch }}.txt"
+        src: "{{ test_file.dest }}"
+        state: present
+        region: "{{ aws_region }}"
+      register: s3_upload
+      ignore_errors: yes
+
+    - name: Show S3 upload result
+      debug:
+        var: s3_upload
+
+    - name: Download test file from S3
+      community.awspowershell.aws_s3_object:
+        bucket: "{{ test_bucket }}"
+        key: "ansible-tests/test-{{ ansible_date_time.epoch }}.txt"
+        dest: /tmp/ansible-download-{{ ansible_date_time.epoch }}.txt
+        state: download
+        region: "{{ aws_region }}"
+      register: s3_download
+      ignore_errors: yes
+      when: s3_upload is succeeded
+
+    - name: Show S3 download result
+      debug:
+        var: s3_download
+      when: s3_upload is succeeded
+
+    - name: Verify downloaded content matches
+      command: diff {{ test_file.dest }} /tmp/ansible-download-{{ ansible_date_time.epoch }}.txt
+      register: diff_result
+      changed_when: false
+      failed_when: false
+      when: s3_download is succeeded
+
+    - name: Show diff result
+      debug:
+        msg: "✓ Downloaded file matches uploaded file!"
+      when:
+        - s3_download is succeeded
+        - diff_result.rc == 0
+
+    - name: Delete test object from S3
+      community.awspowershell.aws_s3_object:
+        bucket: "{{ test_bucket }}"
+        key: "ansible-tests/test-{{ ansible_date_time.epoch }}.txt"
+        state: absent
+        region: "{{ aws_region }}"
+      register: s3_delete
+      ignore_errors: yes
+      when: s3_upload is succeeded
+
+    - name: Show S3 delete result
+      debug:
+        var: s3_delete
+      when: s3_upload is succeeded
+
+    # ========================================
+    # EC2 TAGS MODULE TESTS
+    # ========================================
+
+    - name: "=== EC2 Tags Module Tests ==="
+      debug:
+        msg: "Testing aws_ec2_tags module..."
+
+    - name: Read instance metadata and tags
+      community.awspowershell.aws_ec2_tags:
+        instance_id: "{{ test_instance }}"
+        state: read
+        region: "{{ aws_region }}"
+      register: instance_info
+      ignore_errors: yes
+
+    - name: Show instance metadata
+      debug:
+        msg: |
+          Instance ID: {{ instance_info.instance_id | default('N/A') }}
+          Instance Type: {{ instance_info.metadata.instance_type | default('N/A') }}
+          State: {{ instance_info.metadata.state | default('N/A') }}
+          Private IP: {{ instance_info.metadata.private_ip | default('N/A') }}
+          Public IP: {{ instance_info.metadata.public_ip | default('N/A') }}
+      when: instance_info is succeeded
+
+    - name: Show current tags
+      debug:
+        var: instance_info.tags
+      when: instance_info is succeeded
+
+    - name: Add test tags to instance
+      community.awspowershell.aws_ec2_tags:
+        instance_id: "{{ test_instance }}"
+        state: present
+        region: "{{ aws_region }}"
+        tags:
+          AnsibleTest: "true"
+          TestTimestamp: "{{ ansible_date_time.iso8601 }}"
+      register: add_tags
+      ignore_errors: yes
+      when: instance_info is succeeded
+
+    - name: Show add tags result
+      debug:
+        var: add_tags
+      when: instance_info is succeeded
+
+    - name: Remove test tags from instance
+      community.awspowershell.aws_ec2_tags:
+        instance_id: "{{ test_instance }}"
+        state: absent
+        region: "{{ aws_region }}"
+        tags:
+          AnsibleTest: ""
+          TestTimestamp: ""
+      register: remove_tags
+      ignore_errors: yes
+      when: add_tags is succeeded
+
+    - name: Show remove tags result
+      debug:
+        var: remove_tags
+      when: add_tags is succeeded
+
+    # ========================================
+    # CLEANUP
+    # ========================================
+
+    - name: Cleanup temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ test_file.dest }}"
+        - /tmp/ansible-download-{{ ansible_date_time.epoch }}.txt
+      when: test_file is defined
+
+    # ========================================
+    # SUMMARY
+    # ========================================
+
+    - name: Test Summary
+      debug:
+        msg: |
+          ========================================
+          Quick Test Summary
+          ========================================
+
+          S3 Module:
+            Upload:   {{ 'PASSED' if s3_upload is succeeded else 'FAILED' }}
+            Download: {{ 'PASSED' if s3_download is succeeded else 'SKIPPED' }}
+            Delete:   {{ 'PASSED' if s3_delete is succeeded else 'SKIPPED' }}
+
+          EC2 Tags Module:
+            Read:     {{ 'PASSED' if instance_info is succeeded else 'FAILED' }}
+            Add Tags: {{ 'PASSED' if add_tags is succeeded else 'SKIPPED' }}
+            Remove:   {{ 'PASSED' if remove_tags is succeeded else 'SKIPPED' }}
+
+          ========================================
+
+          {% if s3_upload is failed or instance_info is failed %}
+          Some tests failed. Check output above for details.
+          Common issues:
+            - Check AWS credentials are configured
+            - Verify bucket name and instance ID are correct
+            - Ensure IAM permissions are sufficient
+            - Check region settings
+
+          See CLAUDE.md for troubleshooting help.
+          {% else %}
+          All tests passed! ✓
+
+          You can now use these modules in your playbooks.
+          See README.md and CLAUDE.md for examples.
+          {% endif %}

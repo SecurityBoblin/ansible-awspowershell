@@ -1,0 +1,33 @@
+---
+namespace: SecurityBoblin
+name: awspowershell
+version: 0.1.0
+readme: README.md
+authors:
+  - Marius Rometsch <mrocarmasec@gmail.com>
+
+description: Ansible collection for managing AWS resources using AWS PowerShell cmdlets
+
+license:
+  - MIT
+
+tags:
+  - aws
+  - powershell
+  - cloud
+  - s3
+  - ec2
+  - windows
+
+dependencies: {}
+
+repository: https://github.com/SecurityBoblin/ansible-awspowershell
+documentation: https://github.com/SecurityBoblin/ansible-awspowershell/blob/main/README.md
+homepage: https://github.com/SecurityBoblin/ansible-awspowershell
+issues: https://github.com/SecurityBoblin/ansible-awspowershell/issues
+
+build_ignore:
+  - .notes
+  - '*.tar.gz'
+  - .git
+  - .gitignore

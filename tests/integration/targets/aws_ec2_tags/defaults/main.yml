@@ -1,0 +1,12 @@
+---
+# Default variables for aws_ec2_tags integration tests
+
+# AWS region for testing
+aws_region: us-east-1
+
+# Test instance ID - MUST be set to a valid instance ID in your test environment
+# Override this in integration_config.yml
+test_ec2_instance_id: ""
+
+# Enable/disable cleanup after tests
+cleanup_after_tests: yes

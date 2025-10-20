@@ -1,0 +1,14 @@
+---
+all:
+  children:
+    windows:
+      hosts:
+        windows-host:
+          ansible_host: 20.79.49.43
+      vars:
+        ansible_connection: winrm
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+        ansible_port: 5986
+        ansible_user: mro
+        ansible_password: Jul2S31fert44_

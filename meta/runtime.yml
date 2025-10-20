@@ -1,0 +1,6 @@
+---
+requires_ansible: '>=2.14.0'
+action_groups:
+  aws:
+    - aws_s3_object
+    - aws_ec2_tags

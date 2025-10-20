@@ -1,0 +1,183 @@
+---
+# Integration tests for aws_ec2_tags module
+
+- name: Set test variables
+  set_fact:
+    test_instance_id: "{{ test_ec2_instance_id | default('i-0123456789abcdef0') }}"
+    test_region: "{{ aws_region_default | default('us-east-1') }}"
+    test_tags:
+      TestTag1: "Value1"
+      TestTag2: "Value2"
+      Environment: "Testing"
+
+# Note: These tests require a valid EC2 instance ID
+# Set test_ec2_instance_id in your integration_config.yml
+
+- name: Read instance metadata and tags (check mode)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: read
+    region: "{{ test_region }}"
+  check_mode: yes
+  register: read_check
+
+- name: Verify check mode worked
+  assert:
+    that:
+      - read_check is not changed
+      - read_check.instance_id == test_instance_id
+
+- name: Read instance metadata and tags
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: read
+    region: "{{ test_region }}"
+  register: initial_read
+
+- name: Verify read succeeded
+  assert:
+    that:
+      - initial_read is not changed
+      - initial_read.tags is defined
+      - initial_read.metadata is defined
+      - initial_read.metadata.instance_type is defined
+      - initial_read.metadata.state is defined
+
+- name: Display initial tags
+  debug:
+    var: initial_read.tags
+
+- name: Display instance metadata
+  debug:
+    var: initial_read.metadata
+
+- name: Set tags on instance (check mode)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    tags: "{{ test_tags }}"
+  check_mode: yes
+  register: set_tags_check
+
+- name: Verify check mode reported change
+  assert:
+    that:
+      - set_tags_check is changed
+
+- name: Set tags on instance
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    tags: "{{ test_tags }}"
+  register: set_tags_result
+
+- name: Verify tags were set
+  assert:
+    that:
+      - set_tags_result is changed
+      - set_tags_result.tags.TestTag1 == "Value1"
+      - set_tags_result.tags.TestTag2 == "Value2"
+      - set_tags_result.tags.Environment == "Testing"
+
+- name: Set same tags again (idempotency test)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    tags: "{{ test_tags }}"
+  register: set_tags_again
+
+- name: Verify idempotency
+  assert:
+    that:
+      - set_tags_again is not changed
+
+- name: Update one tag value
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    tags:
+      TestTag1: "UpdatedValue"
+  register: update_tag
+
+- name: Verify tag was updated
+  assert:
+    that:
+      - update_tag is changed
+      - update_tag.tags.TestTag1 == "UpdatedValue"
+
+- name: Set tags with purge (replace all tags)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    purge_tags: yes
+    tags:
+      PurgedTag: "OnlyThisRemains"
+      Name: "TestInstance"
+  register: purge_tags_result
+
+- name: Verify purge worked
+  assert:
+    that:
+      - purge_tags_result is changed
+      - purge_tags_result.tags.PurgedTag == "OnlyThisRemains"
+      - purge_tags_result.tags.Name == "TestInstance"
+      - purge_tags_result.tags.TestTag1 is not defined
+      - purge_tags_result.tags.TestTag2 is not defined
+
+- name: Remove specific tags (check mode)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: absent
+    region: "{{ test_region }}"
+    tags:
+      PurgedTag: ""
+  check_mode: yes
+  register: remove_tags_check
+
+- name: Verify check mode reported change
+  assert:
+    that:
+      - remove_tags_check is changed
+
+- name: Remove specific tags
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: absent
+    region: "{{ test_region }}"
+    tags:
+      PurgedTag: ""
+  register: remove_tags_result
+
+- name: Verify tag was removed
+  assert:
+    that:
+      - remove_tags_result is changed
+      - remove_tags_result.tags.PurgedTag is not defined
+
+- name: Remove non-existent tag (idempotency)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: absent
+    region: "{{ test_region }}"
+    tags:
+      NonExistentTag: ""
+  register: remove_nonexistent
+
+- name: Verify idempotency
+  assert:
+    that:
+      - remove_nonexistent is not changed
+
+- name: Restore original tags (cleanup)
+  community.awspowershell.aws_ec2_tags:
+    instance_id: "{{ test_instance_id }}"
+    state: present
+    region: "{{ test_region }}"
+    purge_tags: yes
+    tags: "{{ initial_read.tags }}"
+  when: cleanup_after_tests | default(true)

@@ -1,0 +1,31 @@
+---
+# Integration test configuration
+# Copy this file and customize for your environment
+
+# AWS Configuration
+# Default region for all AWS operations
+# This is used as aws_region_default in playbooks
+# If not specified, falls back to us-east-1
+aws_region: eu-central-1
+
+# S3 Testing
+# Provide a bucket name that exists in your AWS account for testing
+test_bucket_name: "42124124124121235my-test-bucket"
+
+# EC2 Testing
+# Provide a valid EC2 instance ID for testing
+test_ec2_instance_id: "i-0123456789abcdef0"
+
+# Authentication
+# Option 1: Use environment variables (recommended)
+# Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment
+
+# Option 2: Use credential files (not recommended for CI/CD)
+# aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+# aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+
+# Option 3: Use IAM role (recommended for EC2-based testing)
+# No configuration needed - will use instance profile automatically
+
+# Test cleanup
+cleanup_after_tests: yes

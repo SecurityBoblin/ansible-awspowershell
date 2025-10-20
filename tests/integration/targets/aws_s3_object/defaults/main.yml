@@ -1,0 +1,11 @@
+---
+# Default variables for aws_s3_object integration tests
+
+# AWS region for testing
+aws_region: eu-central-1
+
+# Test bucket name - override this with an actual bucket in your environment
+test_bucket_name: 42124124124121235my-test-bucket
+
+# Enable/disable cleanup after tests
+cleanup_after_tests: yes
