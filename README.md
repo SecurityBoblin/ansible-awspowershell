@@ -1,4 +1,4 @@
-# Ansible Collection: community.awspowershell
+# Ansible Collection: securityboblin.awspowershell
 
 An Ansible collection for managing AWS resources using AWS PowerShell cmdlets on Windows hosts.
 
@@ -68,7 +68,7 @@ Install-Module -Name AWSPowerShell -Force
   hosts: windows_servers
   tasks:
     - name: Upload configuration file
-      community.awspowershell.aws_s3_object:
+      securityboblin.awspowershell.aws_s3_object:
         bucket: my-bucket
         key: configs/app-config.json
         src: C:\temp\app-config.json
@@ -84,7 +84,7 @@ Install-Module -Name AWSPowerShell -Force
   hosts: localhost
   tasks:
     - name: Add tags to instance
-      community.awspowershell.aws_ec2_tags:
+      securityboblin.awspowershell.aws_ec2_tags:
         instance_id: i-1234567890abcdef0
         state: present
         region: us-east-1
@@ -104,7 +104,7 @@ When running on EC2 instances with an attached IAM role, no configuration is nee
 
 ```yaml
 - name: Upload using IAM role
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: file.txt
     src: C:\data\file.txt
@@ -123,7 +123,7 @@ export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 ```yaml
 - name: Upload using environment variables
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: file.txt
     src: C:\data\file.txt
@@ -137,7 +137,7 @@ Provide credentials directly (use Ansible Vault for security):
 
 ```yaml
 - name: Upload with explicit credentials
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: file.txt
     src: C:\data\file.txt
@@ -165,21 +165,21 @@ Manage S3 objects (upload, download, delete).
 
 ```yaml
 # Upload file
-- community.awspowershell.aws_s3_object:
+- securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: data/file.txt
     src: C:\temp\file.txt
     state: present
 
 # Download file
-- community.awspowershell.aws_s3_object:
+- securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: data/file.txt
     dest: C:\downloads\file.txt
     state: download
 
 # Delete object
-- community.awspowershell.aws_s3_object:
+- securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: data/old-file.txt
     state: absent
@@ -202,13 +202,13 @@ Read EC2 instance metadata and manage tags.
 
 ```yaml
 # Read instance information
-- community.awspowershell.aws_ec2_tags:
+- securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: read
   register: instance_info
 
 # Set tags
-- community.awspowershell.aws_ec2_tags:
+- securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: present
     tags:
@@ -216,7 +216,7 @@ Read EC2 instance metadata and manage tags.
       Owner: DevOps
 
 # Remove tags
-- community.awspowershell.aws_ec2_tags:
+- securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: absent
     tags:
@@ -284,7 +284,7 @@ Read EC2 instance metadata and manage tags.
 
   tasks:
     - name: Upload application data
-      community.awspowershell.aws_s3_object:
+      securityboblin.awspowershell.aws_s3_object:
         bucket: "{{ app_bucket }}"
         key: "data/{{ inventory_hostname }}/{{ item | basename }}"
         src: "{{ item }}"
@@ -294,7 +294,7 @@ Read EC2 instance metadata and manage tags.
         - C:\AppData\*.json
 
     - name: Download shared configuration
-      community.awspowershell.aws_s3_object:
+      securityboblin.awspowershell.aws_s3_object:
         bucket: "{{ app_bucket }}"
         key: config/shared-config.json
         dest: C:\Config\shared-config.json
@@ -302,7 +302,7 @@ Read EC2 instance metadata and manage tags.
         region: us-west-2
 
     - name: Backup to S3
-      community.awspowershell.aws_s3_object:
+      securityboblin.awspowershell.aws_s3_object:
         bucket: "{{ backup_bucket }}"
         key: "backups/{{ ansible_date_time.date }}/{{ inventory_hostname }}.zip"
         src: C:\Backups\full-backup.zip
@@ -325,7 +325,7 @@ Read EC2 instance metadata and manage tags.
 
   tasks:
     - name: Gather instance information
-      community.awspowershell.aws_ec2_tags:
+      securityboblin.awspowershell.aws_ec2_tags:
         instance_id: "{{ item }}"
         state: read
         region: us-east-1
@@ -343,7 +343,7 @@ Read EC2 instance metadata and manage tags.
       loop: "{{ instances.results }}"
 
     - name: Standardize tags
-      community.awspowershell.aws_ec2_tags:
+      securityboblin.awspowershell.aws_ec2_tags:
         instance_id: "{{ item }}"
         state: present
         tags:
@@ -374,7 +374,7 @@ ansible-test integration aws_ec2_tags
 ### Module not found
 ```bash
 ansible-galaxy collection list | grep awspowershell
-ansible-galaxy collection install community.awspowershell --force
+ansible-galaxy collection install securityboblin.awspowershell --force
 ```
 
 ### AWS PowerShell not installed

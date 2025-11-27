@@ -38,7 +38,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Upload file to S3
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: path/to/file.txt
     src: /local/path/file.txt
@@ -50,7 +50,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Upload file with credentials
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: uploads/data.json
     src: /tmp/data.json
@@ -63,7 +63,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Download file from S3
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: path/to/file.txt
     dest: C:\downloads\file.txt
@@ -75,7 +75,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Delete S3 object
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: path/to/old-file.txt
     state: absent
@@ -86,7 +86,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Upload using IAM role
-  community.awspowershell.aws_s3_object:
+  securityboblin.awspowershell.aws_s3_object:
     bucket: my-bucket
     key: data/report.pdf
     src: /reports/report.pdf

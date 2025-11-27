@@ -36,7 +36,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Get instance information
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: read
     region: us-west-2
@@ -55,7 +55,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Set instance tags
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: present
     tags:
@@ -69,7 +69,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Replace all tags
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: present
     purge_tags: yes
@@ -84,7 +84,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Remove tags
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: absent
     tags:
@@ -98,7 +98,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Set tags using IAM role
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: present
     tags:
@@ -111,7 +111,7 @@ The module supports three authentication methods (in order of precedence):
 
 ```yaml
 - name: Set tags with credentials
-  community.awspowershell.aws_ec2_tags:
+  securityboblin.awspowershell.aws_ec2_tags:
     instance_id: i-1234567890abcdef0
     state: present
     aws_access_key: "{{ aws_access_key }}"
