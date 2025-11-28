@@ -268,59 +268,162 @@ try {
 
             # Check if object exists
             try {
-                $existingObject = Get-S3Object @awsParams -Key $key -ErrorAction SilentlyContinue
-                $objectExists = $null -ne $existingObject
+                $existingObject = Get-S3Object @awsParams -Key $key -ErrorAction Stop
+                $objectExists = $true
             } catch {
-                $objectExists = $false
+                # Distinguish between "not found" and other errors
+                $errorCode = $_.Exception.ErrorCode
+                $errorMessage = $_.Exception.Message
+
+                if ($errorCode -eq "NotFound" -or $errorMessage -match "NotFound|does not exist|The specified key does not exist") {
+                    $objectExists = $false
+                } elseif ($errorCode -eq "NoSuchBucket" -or $errorMessage -match "NoSuchBucket|bucket.*does not exist") {
+                    $module.FailJson("Bucket does not exist: $bucket. Error: $errorMessage")
+                } elseif ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                    $module.FailJson("Access denied when checking object existence in bucket '$bucket'. Verify IAM permissions (s3:GetObject, s3:ListBucket). Error: $errorMessage")
+                } else {
+                    # Other errors (network issues, invalid credentials, etc.)
+                    $module.FailJson("Failed to check if S3 object exists at s3://$bucket/$key. Error: $errorMessage")
+                }
             }
 
             if ($objectExists -and -not $overwrite) {
                 $module.Result.msg = "Object already exists and overwrite is false"
             } else {
-                if (-not $module.CheckMode) {
-                    Write-S3Object @awsParams -File $src -Key $key -ErrorAction Stop
+                # Upload with detailed error handling
+                try {
+                    if (-not $module.CheckMode) {
+                        Write-S3Object @awsParams -File $src -Key $key -ErrorAction Stop
+                    }
+                    $module.Result.changed = $true
+                    $module.Result.msg = "File uploaded successfully to s3://$bucket/$key"
+                } catch {
+                    $errorCode = $_.Exception.ErrorCode
+                    $errorMessage = $_.Exception.Message
+
+                    if ($errorCode -eq "NoSuchBucket" -or $errorMessage -match "NoSuchBucket|bucket.*does not exist") {
+                        $module.FailJson("Failed to upload: Bucket '$bucket' does not exist. Error: $errorMessage")
+                    } elseif ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                        $module.FailJson("Failed to upload: Access denied to bucket '$bucket'. Verify IAM permissions (s3:PutObject). Error: $errorMessage")
+                    } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+                        $module.FailJson("Failed to upload: Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+                    } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+                        $module.FailJson("Failed to upload: AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+                    } elseif ($errorMessage -match "Could not find a part of the path|FileNotFoundException") {
+                        $module.FailJson("Failed to upload: Source file '$src' could not be read. Verify file path and permissions. Error: $errorMessage")
+                    } elseif ($errorMessage -match "network|timeout|connection") {
+                        $module.FailJson("Failed to upload: Network error occurred. Check connectivity to AWS S3. Error: $errorMessage")
+                    } else {
+                        $module.FailJson("Failed to upload file to s3://$bucket/$key. Error: $errorMessage", $_)
+                    }
                 }
-                $module.Result.changed = $true
-                $module.Result.msg = "File uploaded successfully to s3://$bucket/$key"
             }
         }
 
         "download" {
             # Download file from S3
-            # Check if object exists
+            # Check if object exists with detailed error handling
             try {
                 $existingObject = Get-S3Object @awsParams -Key $key -ErrorAction Stop
             } catch {
-                $module.FailJson("Object does not exist: s3://$bucket/$key")
+                $errorCode = $_.Exception.ErrorCode
+                $errorMessage = $_.Exception.Message
+
+                if ($errorCode -eq "NotFound" -or $errorMessage -match "NotFound|does not exist|The specified key does not exist") {
+                    $module.FailJson("Failed to download: Object does not exist at s3://$bucket/$key")
+                } elseif ($errorCode -eq "NoSuchBucket" -or $errorMessage -match "NoSuchBucket|bucket.*does not exist") {
+                    $module.FailJson("Failed to download: Bucket '$bucket' does not exist. Error: $errorMessage")
+                } elseif ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                    $module.FailJson("Failed to download: Access denied to object at s3://$bucket/$key. Verify IAM permissions (s3:GetObject). Error: $errorMessage")
+                } else {
+                    $module.FailJson("Failed to check if S3 object exists at s3://$bucket/$key. Error: $errorMessage")
+                }
             }
 
             # Check if destination file exists
             if ((Test-Path -Path $dest) -and -not $overwrite) {
                 $module.Result.msg = "Destination file already exists and overwrite is false"
             } else {
-                if (-not $module.CheckMode) {
-                    Read-S3Object @awsParams -Key $key -File $dest -ErrorAction Stop
+                # Download with detailed error handling
+                try {
+                    if (-not $module.CheckMode) {
+                        Read-S3Object @awsParams -Key $key -File $dest -ErrorAction Stop
+                    }
+                    $module.Result.changed = $true
+                    $module.Result.msg = "File downloaded successfully from s3://$bucket/$key to $dest"
+                } catch {
+                    $errorCode = $_.Exception.ErrorCode
+                    $errorMessage = $_.Exception.Message
+
+                    if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                        $module.FailJson("Failed to download: Access denied to object at s3://$bucket/$key. Verify IAM permissions (s3:GetObject). Error: $errorMessage")
+                    } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+                        $module.FailJson("Failed to download: Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+                    } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+                        $module.FailJson("Failed to download: AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+                    } elseif ($errorMessage -match "Could not find a part of the path|DirectoryNotFoundException|UnauthorizedAccessException") {
+                        $module.FailJson("Failed to download: Cannot write to destination path '$dest'. Verify directory exists and permissions are correct. Error: $errorMessage")
+                    } elseif ($errorMessage -match "network|timeout|connection") {
+                        $module.FailJson("Failed to download: Network error occurred. Check connectivity to AWS S3. Error: $errorMessage")
+                    } else {
+                        $module.FailJson("Failed to download file from s3://$bucket/$key to $dest. Error: $errorMessage", $_)
+                    }
                 }
-                $module.Result.changed = $true
-                $module.Result.msg = "File downloaded successfully from s3://$bucket/$key to $dest"
             }
         }
 
         "absent" {
             # Delete object from S3
             try {
-                $existingObject = Get-S3Object @awsParams -Key $key -ErrorAction SilentlyContinue
-                if ($null -ne $existingObject) {
-                    if (-not $module.CheckMode) {
-                        Remove-S3Object @awsParams -Key $key -Force -ErrorAction Stop
+                # Check if object exists with detailed error handling
+                try {
+                    $existingObject = Get-S3Object @awsParams -Key $key -ErrorAction Stop
+                    $objectExists = $true
+                } catch {
+                    $errorCode = $_.Exception.ErrorCode
+                    $errorMessage = $_.Exception.Message
+
+                    if ($errorCode -eq "NotFound" -or $errorMessage -match "NotFound|does not exist|The specified key does not exist") {
+                        $objectExists = $false
+                    } elseif ($errorCode -eq "NoSuchBucket" -or $errorMessage -match "NoSuchBucket|bucket.*does not exist") {
+                        $module.FailJson("Failed to delete: Bucket '$bucket' does not exist. Error: $errorMessage")
+                    } elseif ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                        $module.FailJson("Failed to delete: Access denied when checking object at s3://$bucket/$key. Verify IAM permissions (s3:GetObject, s3:DeleteObject). Error: $errorMessage")
+                    } else {
+                        $module.FailJson("Failed to check if S3 object exists at s3://$bucket/$key. Error: $errorMessage")
                     }
-                    $module.Result.changed = $true
-                    $module.Result.msg = "Object deleted successfully from s3://$bucket/$key"
+                }
+
+                if ($objectExists) {
+                    # Delete with detailed error handling
+                    try {
+                        if (-not $module.CheckMode) {
+                            Remove-S3Object @awsParams -Key $key -Force -ErrorAction Stop
+                        }
+                        $module.Result.changed = $true
+                        $module.Result.msg = "Object deleted successfully from s3://$bucket/$key"
+                    } catch {
+                        $errorCode = $_.Exception.ErrorCode
+                        $errorMessage = $_.Exception.Message
+
+                        if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                            $module.FailJson("Failed to delete: Access denied to object at s3://$bucket/$key. Verify IAM permissions (s3:DeleteObject). Error: $errorMessage")
+                        } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+                            $module.FailJson("Failed to delete: Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+                            $module.FailJson("Failed to delete: AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorMessage -match "network|timeout|connection") {
+                            $module.FailJson("Failed to delete: Network error occurred. Check connectivity to AWS S3. Error: $errorMessage")
+                        } else {
+                            $module.FailJson("Failed to delete object from s3://$bucket/$key. Error: $errorMessage", $_)
+                        }
+                    }
                 } else {
                     $module.Result.msg = "Object does not exist: s3://$bucket/$key"
                 }
             } catch {
-                $module.FailJson("Failed to delete object: $_")
+                # Catch-all for unexpected errors
+                $module.FailJson("Unexpected error during delete operation: $($_.Exception.Message)", $_)
             }
         }
     }

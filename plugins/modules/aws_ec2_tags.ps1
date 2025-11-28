@@ -252,7 +252,7 @@ Installation Instructions:
 
 # Function to get current tags
 function Get-CurrentTags {
-    param($InstanceId, $AwsParams)
+    param($InstanceId, $AwsParams, $Module)
 
     try {
         $instance = Get-EC2Instance @AwsParams -InstanceId $InstanceId -ErrorAction Stop
@@ -266,7 +266,22 @@ function Get-CurrentTags {
         }
         return $currentTags
     } catch {
-        return $null
+        $errorCode = $_.Exception.ErrorCode
+        $errorMessage = $_.Exception.Message
+
+        if ($errorCode -eq "InvalidInstanceID.NotFound" -or $errorMessage -match "InvalidInstanceID|does not exist|instance.*not found") {
+            return $null
+        } elseif ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+            $Module.FailJson("Access denied when querying instance '$InstanceId'. Verify IAM permissions (ec2:DescribeInstances). Error: $errorMessage")
+        } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+            $Module.FailJson("Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+        } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+            $Module.FailJson("AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+        } elseif ($errorMessage -match "network|timeout|connection") {
+            $Module.FailJson("Network error occurred when querying instance. Check connectivity to AWS EC2. Error: $errorMessage")
+        } else {
+            $Module.FailJson("Failed to retrieve instance information for '$InstanceId'. Error: $errorMessage")
+        }
     }
 }
 
@@ -302,7 +317,7 @@ try {
     }
 
     # Verify instance exists and get current tags
-    $currentTags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams
+    $currentTags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams -Module $module
 
     if ($null -eq $currentTags -and $state -ne "read") {
         $module.FailJson("Instance not found: $instance_id")
@@ -334,7 +349,16 @@ try {
                     subnet_id = $instanceData.SubnetId
                 }
             } catch {
-                $module.FailJson("Failed to retrieve instance metadata: $($_.Exception.Message)")
+                $errorCode = $_.Exception.ErrorCode
+                $errorMessage = $_.Exception.Message
+
+                if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                    $module.FailJson("Access denied when retrieving instance metadata for '$instance_id'. Verify IAM permissions (ec2:DescribeInstances). Error: $errorMessage")
+                } elseif ($errorMessage -match "network|timeout|connection") {
+                    $module.FailJson("Network error occurred when retrieving instance metadata. Check connectivity to AWS EC2. Error: $errorMessage")
+                } else {
+                    $module.FailJson("Failed to retrieve instance metadata for '$instance_id'. Error: $errorMessage")
+                }
             }
         }
 
@@ -354,8 +378,21 @@ try {
                 if ($tagsToRemove.Count -gt 0) {
                     $tagsChanged = $true
                     if (-not $module.CheckMode) {
-                        foreach ($key in $tagsToRemove) {
-                            Remove-EC2Tag @awsParams -Resource $instance_id -Tag @{ Key = $key } -Force -ErrorAction Stop
+                        try {
+                            foreach ($key in $tagsToRemove) {
+                                Remove-EC2Tag @awsParams -Resource $instance_id -Tag @{ Key = $key } -Force -ErrorAction Stop
+                            }
+                        } catch {
+                            $errorCode = $_.Exception.ErrorCode
+                            $errorMessage = $_.Exception.Message
+
+                            if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                                $module.FailJson("Access denied when removing tags from instance '$instance_id'. Verify IAM permissions (ec2:DeleteTags). Error: $errorMessage")
+                            } elseif ($errorCode -eq "InvalidInstanceID.NotFound" -or $errorMessage -match "InvalidInstanceID|does not exist") {
+                                $module.FailJson("Instance '$instance_id' not found when removing tags. Error: $errorMessage")
+                            } else {
+                                $module.FailJson("Failed to remove tags from instance '$instance_id' during purge. Error: $errorMessage")
+                            }
                         }
                     }
                 }
@@ -363,12 +400,31 @@ try {
 
             if ($tagsChanged) {
                 if (-not $module.CheckMode) {
-                    # Create tag objects
-                    $ec2Tags = @()
-                    foreach ($key in $tags.Keys) {
-                        $ec2Tags += @{ Key = $key; Value = $tags[$key] }
+                    try {
+                        # Create tag objects
+                        $ec2Tags = @()
+                        foreach ($key in $tags.Keys) {
+                            $ec2Tags += @{ Key = $key; Value = $tags[$key] }
+                        }
+                        New-EC2Tag @awsParams -Resource $instance_id -Tag $ec2Tags -ErrorAction Stop
+                    } catch {
+                        $errorCode = $_.Exception.ErrorCode
+                        $errorMessage = $_.Exception.Message
+
+                        if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                            $module.FailJson("Access denied when setting tags on instance '$instance_id'. Verify IAM permissions (ec2:CreateTags). Error: $errorMessage")
+                        } elseif ($errorCode -eq "InvalidInstanceID.NotFound" -or $errorMessage -match "InvalidInstanceID|does not exist") {
+                            $module.FailJson("Instance '$instance_id' not found when setting tags. Error: $errorMessage")
+                        } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+                            $module.FailJson("Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+                            $module.FailJson("AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorMessage -match "network|timeout|connection") {
+                            $module.FailJson("Network error occurred when setting tags. Check connectivity to AWS EC2. Error: $errorMessage")
+                        } else {
+                            $module.FailJson("Failed to set tags on instance '$instance_id'. Error: $errorMessage")
+                        }
                     }
-                    New-EC2Tag @awsParams -Resource $instance_id -Tag $ec2Tags -ErrorAction Stop
                 }
                 $module.Result.changed = $true
                 $module.Result.msg = "Tags updated successfully for instance $instance_id"
@@ -377,7 +433,7 @@ try {
             }
 
             # Return current tags
-            $module.Result.tags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams
+            $module.Result.tags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams -Module $module
         }
 
         "absent" {
@@ -391,8 +447,27 @@ try {
 
             if ($tagsToRemove.Count -gt 0) {
                 if (-not $module.CheckMode) {
-                    foreach ($key in $tagsToRemove) {
-                        Remove-EC2Tag @awsParams -Resource $instance_id -Tag @{ Key = $key } -Force -ErrorAction Stop
+                    try {
+                        foreach ($key in $tagsToRemove) {
+                            Remove-EC2Tag @awsParams -Resource $instance_id -Tag @{ Key = $key } -Force -ErrorAction Stop
+                        }
+                    } catch {
+                        $errorCode = $_.Exception.ErrorCode
+                        $errorMessage = $_.Exception.Message
+
+                        if ($errorCode -eq "AccessDenied" -or $errorMessage -match "Access Denied|Forbidden|403") {
+                            $module.FailJson("Access denied when removing tags from instance '$instance_id'. Verify IAM permissions (ec2:DeleteTags). Error: $errorMessage")
+                        } elseif ($errorCode -eq "InvalidInstanceID.NotFound" -or $errorMessage -match "InvalidInstanceID|does not exist") {
+                            $module.FailJson("Instance '$instance_id' not found when removing tags. Error: $errorMessage")
+                        } elseif ($errorCode -eq "InvalidAccessKeyId" -or $errorMessage -match "InvalidAccessKeyId|invalid.*access key") {
+                            $module.FailJson("Invalid AWS access key ID. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorCode -eq "SignatureDoesNotMatch" -or $errorMessage -match "SignatureDoesNotMatch|signature.*not match") {
+                            $module.FailJson("AWS secret key does not match access key. Verify credentials. Error: $errorMessage")
+                        } elseif ($errorMessage -match "network|timeout|connection") {
+                            $module.FailJson("Network error occurred when removing tags. Check connectivity to AWS EC2. Error: $errorMessage")
+                        } else {
+                            $module.FailJson("Failed to remove tags from instance '$instance_id'. Error: $errorMessage")
+                        }
                     }
                 }
                 $module.Result.changed = $true
@@ -402,7 +477,7 @@ try {
             }
 
             # Return current tags
-            $module.Result.tags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams
+            $module.Result.tags = Get-CurrentTags -InstanceId $instance_id -AwsParams $awsParams -Module $module
         }
     }
 
