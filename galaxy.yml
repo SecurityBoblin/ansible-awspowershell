@@ -1,7 +1,7 @@
 ---
 namespace: securityboblin
 name: awspowershell
-version: 0.1.0
+version: 0.1.1
 readme: README.md
 authors:
   - Marius Rometsch <mrocarmasec@gmail.com>
